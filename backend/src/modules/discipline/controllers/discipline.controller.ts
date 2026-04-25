@@ -253,5 +253,23 @@ export const statsHandler = async (_req: Request, res: Response, next: NextFunct
   try { res.json({ success: true, data: await catalog.getStats() }); } catch (e) { next(e); }
 };
 
+// ═══════════════════ STUDENT SELF-ACCESS ════════════════════
+
+export const studentOwnDossiersHandler = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!requireUser(req, res)) return;
+    const result = await svc.getStudentOwnDossiers(req.user!.id);
+    sendResult(res, result);
+  } catch (e) { next(e); }
+};
+
+export const studentNotificationsHandler = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    if (!requireUser(req, res)) return;
+    const result = await svc.getStudentNotifications(req.user!.id);
+    sendResult(res, result);
+  } catch (e) { next(e); }
+};
+
 // Alias
 export const scheduleMeetingHandler = createConseilHandler;

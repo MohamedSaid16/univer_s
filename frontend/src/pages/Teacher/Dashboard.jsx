@@ -33,7 +33,6 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'document', label: 'Document' },
   { id: 'pfe', label: 'PFE' },
-  { id: 'module', label: 'Module' },
   { id: 'jury', label: 'Jury' },
 ];
 
@@ -131,7 +130,6 @@ export default function TeacherDashboard() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState({ title: '', students: [] });
   const [docSubTab, setDocSubTab] = useState('demande');
-  const [selectedModuleSpec, setSelectedModuleSpec] = useState('');
 
   const hasPresidentMembership = useMemo(
     () =>
@@ -196,10 +194,10 @@ export default function TeacherDashboard() {
     return () => { cancelled = true; };
   }, []);
 
-  const courses = overview?.courses ?? [];
   const recentAnnouncements = overview?.recentAnnouncements ?? [];
   const recentReclamations = overview?.recentReclamations ?? [];
   const summary = overview?.summary ?? null;
+  const pfeBreakdown = overview?.pfeBreakdown ?? [];
 
   // ── Overview tab — charts derived from NEW data ───────────────────────
   const chartsData = useMemo(() => {
@@ -212,8 +210,19 @@ export default function TeacherDashboard() {
         ].filter((d) => d.value > 0)
       : [];
 
+    const studentsPerPfeGroup = (pfeBreakdown || []).map((g) => ({
+      name: g.groupName,
+      value: g.studentCount ?? 0,
+    }));
+
+    const pfeProjectsByStatus = summary
+      ? [
+          { name: 'Active', value: summary.activePfeProjects ?? 0 },
+          { name: 'Finalized', value: summary.finalizedPfeProjects ?? 0 },
+        ].filter((d) => d.value > 0)
+      : [];
+
     return {
-      coursesByPromo: countBy(courses, (c) => c.promoName),
       documentsByStatus: docStatusData,
       reclamationsByStatus: [
         { name: 'Pending', value: summary?.pendingReclamations ?? 0 },
@@ -223,51 +232,40 @@ export default function TeacherDashboard() {
         disciplinaryCases,
         (d) => DISCIPLINE_STATUS_LABEL[d.status] || d.status || 'Unknown',
       ),
+      studentsPerPfeGroup,
+      pfeProjectsByStatus,
     };
-  }, [courses, summary, disciplinaryCases]);
+  }, [summary, disciplinaryCases, pfeBreakdown]);
 
-  // ── PFE tab — no NEW endpoint; show zeroed placeholders in OLD structure ─
-  const pfeData = useMemo(() => ({
-    stats: { totalThemes: 0, totalStudents: 0 },
-    diversity: [],
-    statusDistribution: [],
-    themes: [],
-  }), []);
-
-  // ── Module tab — group courses by promo/speciality ────────────────────
-  const modulesData = useMemo(() => {
-    const byPromo = new Map();
-    for (const course of courses) {
-      const key = String(course.promoId ?? 'na');
-      if (!byPromo.has(key)) {
-        byPromo.set(key, {
-          id: key,
-          name: course.promoName || 'Unassigned',
-          modules: [],
-        });
-      }
-      const studentsInPromo = students.filter(
-        (s) => String(s.promo?.id) === String(course.promoId)
-      );
-      byPromo.get(key).modules.push({
-        id: course.moduleId,
-        name: course.moduleName,
-        code: course.moduleCode,
-        sections: {
-          cours: { count: studentsInPromo.length, students: studentsInPromo.map(mapStudentForModal) },
-          td: { count: 0, students: [] },
-          tp: { count: 0, students: [] },
-        },
-      });
-    }
-    return Array.from(byPromo.values());
-  }, [courses, students]);
-
-  useEffect(() => {
-    if (!selectedModuleSpec && modulesData.length > 0) {
-      setSelectedModuleSpec(String(modulesData[0].id));
-    }
-  }, [modulesData, selectedModuleSpec]);
+  // ── PFE tab — real data sourced from /teacher/dashboard pfeBreakdown ─
+  const pfeData = useMemo(() => {
+    const themes = (pfeBreakdown || []).map((g) => ({
+      id: g.groupId,
+      title: g.subjectTitle || g.groupName,
+      type: g.isFinalized ? 'finalized' : 'active',
+      specialite: g.groupName,
+      status: g.isFinalized ? 'finalized' : 'en_cours',
+      studentsCount: g.studentCount ?? 0,
+    }));
+    const statusDistribution = [
+      { name: 'Active', value: summary?.activePfeProjects ?? 0 },
+      { name: 'Finalized', value: summary?.finalizedPfeProjects ?? 0 },
+    ].filter((d) => d.value > 0);
+    return {
+      stats: {
+        totalThemes: summary?.pfeProjects ?? 0,
+        totalStudents: summary?.supervisedStudents ?? 0,
+        totalGroups: summary?.pfeGroups ?? 0,
+        averageGroupSize: summary?.averagePfeGroupSize ?? 0,
+      },
+      diversity: (pfeBreakdown || []).map((g) => ({
+        name: g.groupName,
+        value: g.studentCount ?? 0,
+      })),
+      statusDistribution,
+      themes,
+    };
+  }, [pfeBreakdown, summary]);
 
   // ── Jury tab — no NEW endpoint ────────────────────────────────────────
   const juryData = useMemo(() => ({
@@ -285,17 +283,18 @@ export default function TeacherDashboard() {
   // ── Render helpers for each tab ───────────────────────────────────────
   const renderOverview = () => (
     <div className="space-y-6 mt-6">
-      {/* KPI Cards */}
+      {/* KPI Cards — PFE-based teacher metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <KpiCard label="Students" value={summary?.students ?? 0} accent="brand" />
-        <KpiCard label="Courses" value={summary?.courses ?? 0} accent="success" />
-        <KpiCard label="Doc Requests" value={summary?.documents ?? 0} accent="warning" />
+        <KpiCard label="My Supervised Students" value={summary?.supervisedStudents ?? 0} accent="brand" />
+        <KpiCard label="My PFE Groups" value={summary?.pfeGroups ?? 0} accent="success" />
+        <KpiCard label="My PFE Projects" value={summary?.pfeProjects ?? 0} accent="warning" />
         <KpiCard label="Reclamations" value={summary?.reclamations ?? 0} accent="danger" />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ChartCard title="Courses by Promo" data={chartsData.coursesByPromo} variant="bar" color="#00C49F" />
+        <ChartCard title="Students per PFE Group" data={chartsData.studentsPerPfeGroup} variant="bar" color="#0088FE" />
+        <ChartCard title="My PFE Projects" data={chartsData.pfeProjectsByStatus} variant="pie" palette={['#FFBB28', '#00C49F']} />
         <ChartCard title="Document Requests by Status" data={chartsData.documentsByStatus} variant="bar" color="#FFBB28" />
         <ChartCard title="Reclamations" data={chartsData.reclamationsByStatus} variant="pie" palette={['#FFBB28', '#00C49F']} />
         <ChartCard title="Disciplinary Cases" data={chartsData.conseilDisciplineByType} variant="bar" color="#FF8042" />
@@ -378,30 +377,25 @@ export default function TeacherDashboard() {
 
   const renderPfe = () => (
     <div className="mt-6 space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="bg-surface rounded-lg border border-edge shadow-card p-6 flex flex-col">
-          <span className="text-sm text-ink-secondary uppercase font-semibold tracking-wider">Total Themes</span>
-          <span className="text-3xl font-bold text-brand mt-2">{pfeData.stats.totalThemes}</span>
-        </div>
-        <div className="bg-surface rounded-lg border border-edge shadow-card p-6 flex flex-col">
-          <span className="text-sm text-ink-secondary uppercase font-semibold tracking-wider">Total Students</span>
-          <span className="text-3xl font-bold text-success mt-2">{pfeData.stats.totalStudents}</span>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <KpiCard label="My PFE Projects" value={pfeData.stats.totalThemes} accent="brand" />
+        <KpiCard label="My PFE Groups" value={pfeData.stats.totalGroups} accent="success" />
+        <KpiCard label="Supervised Students" value={pfeData.stats.totalStudents} accent="warning" />
+        <KpiCard label="Avg Group Size" value={pfeData.stats.averageGroupSize} accent="brand" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <ChartCard title="Diversity by Speciality" data={pfeData.diversity} variant="pie" palette={CHART_PALETTE} />
-        <ChartCard title="Theme Status" data={pfeData.statusDistribution} variant="bar" color="#8884d8" />
+        <ChartCard title="Students per PFE Group" data={pfeData.diversity} variant="pie" palette={CHART_PALETTE} />
+        <ChartCard title="Project Status" data={pfeData.statusDistribution} variant="bar" color="#8884d8" />
       </div>
 
       <div className="bg-surface rounded-lg border border-edge shadow-card overflow-hidden">
-        <h3 className="p-6 text-lg font-bold border-b border-edge">Proposed Themes</h3>
+        <h3 className="p-6 text-lg font-bold border-b border-edge">My Supervised PFE Groups</h3>
         <table className="w-full text-left border-collapse">
           <thead className="bg-edge/20 text-ink-secondary text-sm">
             <tr>
-              <th className="p-4 border-b border-edge font-medium">Title</th>
-              <th className="p-4 border-b border-edge font-medium">Type</th>
-              <th className="p-4 border-b border-edge font-medium">Speciality</th>
+              <th className="p-4 border-b border-edge font-medium">Subject / Group</th>
+              <th className="p-4 border-b border-edge font-medium">Group Name</th>
               <th className="p-4 border-b border-edge font-medium">Status</th>
               <th className="p-4 border-b border-edge font-medium">Students</th>
             </tr>
@@ -409,22 +403,21 @@ export default function TeacherDashboard() {
           <tbody className="text-sm">
             {pfeData.themes.length === 0 ? (
               <tr>
-                <td colSpan="5" className="p-8 text-center text-ink-tertiary">
-                  No themes found.
+                <td colSpan="4" className="p-8 text-center text-ink-tertiary">
+                  No PFE groups assigned.
                 </td>
               </tr>
             ) : (
               pfeData.themes.map((theme) => (
                 <tr key={theme.id} className="hover:bg-edge/10">
                   <td className="p-4 border-b border-edge font-medium">{theme.title}</td>
-                  <td className="p-4 border-b border-edge capitalize">{theme.type}</td>
                   <td className="p-4 border-b border-edge">{theme.specialite}</td>
                   <td className="p-4 border-b border-edge">
                     <span
                       className={`px-2 py-1 text-xs rounded-full uppercase tracking-wider font-semibold ${
-                        theme.status === 'en_attente'
-                          ? 'bg-warning/20 text-warning'
-                          : 'bg-success/20 text-success'
+                        theme.status === 'finalized'
+                          ? 'bg-success/20 text-success'
+                          : 'bg-warning/20 text-warning'
                       }`}
                     >
                       {String(theme.status || '').replace('_', ' ')}
@@ -439,79 +432,6 @@ export default function TeacherDashboard() {
       </div>
     </div>
   );
-
-  const renderModule = () => {
-    if (modulesData.length === 0) {
-      return <div className="p-8 text-center text-ink-tertiary">No modules assigned.</div>;
-    }
-    const currentSpec = modulesData.find((m) => String(m.id) === String(selectedModuleSpec));
-
-    return (
-      <div className="mt-6 space-y-6">
-        <div className="flex items-center gap-4">
-          <label className="font-medium text-ink">Speciality:</label>
-          <select
-            value={selectedModuleSpec}
-            onChange={(e) => setSelectedModuleSpec(e.target.value)}
-            className="border border-edge rounded-md px-3 py-2 bg-surface text-sm w-64"
-          >
-            {modulesData.map((spec) => (
-              <option key={spec.id} value={spec.id}>
-                {spec.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {currentSpec &&
-          currentSpec.modules.map((mod) => (
-            <div key={mod.id} className="bg-surface rounded-lg border border-edge shadow-card p-6">
-              <h3 className="text-xl font-bold mb-4 text-brand">
-                {mod.name} <span className="text-ink-tertiary text-sm ml-2">({mod.code})</span>
-              </h3>
-              <div className="grid grid-cols-3 gap-4">
-                {[
-                  { key: 'cours', label: 'Cours' },
-                  { key: 'td', label: 'TD' },
-                  { key: 'tp', label: 'TP' },
-                ].map((section) => {
-                  const slot = mod.sections[section.key];
-                  const active = slot.count > 0;
-                  return (
-                    <button
-                      key={section.key}
-                      type="button"
-                      onClick={() => {
-                        if (active) {
-                          setModalData({
-                            title: `${mod.name} — ${section.label}`,
-                            students: slot.students,
-                          });
-                          setModalOpen(true);
-                        }
-                      }}
-                      className={`p-4 rounded-md border border-edge flex flex-col items-center transition-colors ${
-                        active
-                          ? 'bg-edge/10 hover:bg-edge/20 cursor-pointer'
-                          : 'bg-surface-200 opacity-50 cursor-not-allowed'
-                      }`}
-                    >
-                      <span className="uppercase text-xs font-bold text-ink-secondary tracking-wider">
-                        {section.label}
-                      </span>
-                      <span className="text-2xl font-bold mt-2">
-                        {slot.count}{' '}
-                        <span className="text-sm font-normal text-ink-tertiary">students</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-      </div>
-    );
-  };
 
   const renderJury = () => (
     <div className="mt-6 space-y-6">
@@ -635,7 +555,6 @@ export default function TeacherDashboard() {
           {activeTab === 'overview' && renderOverview()}
           {activeTab === 'document' && renderDocument()}
           {activeTab === 'pfe' && renderPfe()}
-          {activeTab === 'module' && renderModule()}
           {activeTab === 'jury' && renderJury()}
         </>
       )}
@@ -715,19 +634,3 @@ function ChartCard({ title, data, variant, color, palette, offset = 0 }) {
   );
 }
 
-function mapStudentForModal(student) {
-  const fullName = [student.firstName, student.lastName].filter(Boolean).join(' ')
-    || student.fullName
-    || [student.prenom, student.nom].filter(Boolean).join(' ')
-    || `Student #${student.id}`;
-  return {
-    id: student.id,
-    matricule: student.matricule || student.cne || String(student.id),
-    name: fullName,
-    firstName: student.firstName || student.prenom,
-    lastName: student.lastName || student.nom,
-    nom: student.lastName || student.nom,
-    prenom: student.firstName || student.prenom,
-    promo: student.promo,
-  };
-}

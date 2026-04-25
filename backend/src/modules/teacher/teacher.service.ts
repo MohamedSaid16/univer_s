@@ -12,7 +12,10 @@ import prisma from "../../config/database";
 import { changePassword } from "../auth/auth.service";
 import { writeAuditLogSafe } from "../../shared/audit-log.service";
 import { appendRequestWorkflowEvent } from "../requests/workflow.service";
-import { buildTeacherStatistics } from "../dashboard/statistics.service";
+import {
+  buildTeacherStatistics,
+  getTeacherPfeBreakdown,
+} from "../dashboard/statistics.service";
 
 export type TeacherAnnouncementStatus = "draft" | "published" | "archived" | "scheduled";
 export type TeacherReclamationStatus = "pending" | "approved" | "rejected";
@@ -720,14 +723,13 @@ export const getTeacherDashboard = async (userId: number) => {
     ? { etudiant: { promoId: { in: promoIds } } }
     : { id: -1 };
 
-  const distinctModuleIds = new Set(context.courses.map((course) => course.moduleId));
-
-  const [summary, recentAnnouncements, recentReclamations] = await Promise.all([
+  const [summary, pfeBreakdown, recentAnnouncements, recentReclamations] = await Promise.all([
     buildTeacherStatistics({
       userId,
+      enseignantId: context.enseignantId,
       promoIds,
-      coursesCount: distinctModuleIds.size,
     }),
+    getTeacherPfeBreakdown(context.enseignantId),
     prisma.annonce.findMany({
       where: { auteurId: userId },
       include: {
@@ -767,31 +769,24 @@ export const getTeacherDashboard = async (userId: number) => {
 
   const mappedAnnouncements = recentAnnouncements.map((announcement) => {
     const link = linksMap.get(announcement.id);
-    const moduleMeta = link?.moduleId ? context.moduleById.get(link.moduleId) : undefined;
-    return mapAnnouncementForTeacher(announcement, link, moduleMeta);
+    return mapAnnouncementForTeacher(announcement, link, undefined);
   });
 
-  const mappedReclamations = recentReclamations.map((reclamation) => {
-    const relatedModules = context.courses
-      .filter((course) => course.promoId === reclamation.etudiant.promoId)
-      .map((course) => ({ id: course.moduleId, name: course.moduleName, code: course.moduleCode }));
-
-    return {
-      id: reclamation.id,
-      title: reclamation.objet_ar || reclamation.objet_en || "Request",
-      type: reclamation.type.nom_ar || reclamation.type.nom_en || "N/A",
-      status: mapReclamationStatusToUi(reclamation.status),
-      createdAt: reclamation.createdAt,
-      student: {
-        id: reclamation.etudiant.id,
-        fullName: `${reclamation.etudiant.user.prenom} ${reclamation.etudiant.user.nom}`.trim(),
-      },
-      relatedModules,
-    };
-  });
+  const mappedReclamations = recentReclamations.map((reclamation) => ({
+    id: reclamation.id,
+    title: reclamation.objet_ar || reclamation.objet_en || "Request",
+    type: reclamation.type.nom_ar || reclamation.type.nom_en || "N/A",
+    status: mapReclamationStatusToUi(reclamation.status),
+    createdAt: reclamation.createdAt,
+    student: {
+      id: reclamation.etudiant.id,
+      fullName: `${reclamation.etudiant.user.prenom} ${reclamation.etudiant.user.nom}`.trim(),
+    },
+  }));
 
   return {
     summary,
+    pfeBreakdown,
     quickActions: [
       {
         id: "create-announcement",
@@ -806,7 +801,6 @@ export const getTeacherDashboard = async (userId: number) => {
     ],
     recentAnnouncements: mappedAnnouncements,
     recentReclamations: mappedReclamations,
-    courses: context.courses,
   };
 };
 

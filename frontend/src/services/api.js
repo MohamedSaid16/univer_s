@@ -131,6 +131,7 @@ async function request(endpoint, options = {}, _isRetry = false) {
     res.status === 401
     && !_isRetry
     && !endpoint.includes('/refresh-token')
+    && !endpoint.includes('/login')
     && !(isSessionProbeEndpoint && !hasTokenHint)
   ) {
     if (!isRefreshing) {

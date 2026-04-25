@@ -43,16 +43,6 @@ import EmptyState from '../../components/dashboard/EmptyState';
 
 const CHART_PALETTE = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
-function countBy(list, keyFn) {
-  const counts = {};
-  for (const item of list || []) {
-    const key = keyFn(item);
-    if (!key) continue;
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return Object.entries(counts).map(([name, value]) => ({ name, value }));
-}
-
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
   return (
@@ -131,6 +121,13 @@ function deriveStudentStats(summary, pfe) {
   const pfeChartLabel = pfe?.hasPfe
     ? PFE_STATUS_TO_CHART_LABEL[pfe.assignmentStatus] || 'Not selected'
     : 'Not selected';
+  const disciplineOpen = summary.disciplineOpenCases ?? 0;
+  const disciplineClosed = summary.disciplineClosedCases ?? 0;
+  const hasDiscipline = disciplineOpen > 0 || disciplineClosed > 0;
+  const disciplineStatus = hasDiscipline
+    ? (disciplineOpen > 0 ? 'Under Review' : 'Sanctioned')
+    : 'Clean';
+
   return {
     kpis: {
       justifications: {
@@ -142,8 +139,8 @@ function deriveStudentStats(summary, pfe) {
     },
     charts: {
       pfeStatus: pfeChartLabel,
-      disciplineStatus: 'Clean',
-      disciplineCounts: { underReview: 0, sanctioned: 0 },
+      disciplineStatus: disciplineStatus,
+      disciplineCounts: { underReview: disciplineOpen, sanctioned: disciplineClosed },
     },
   };
 }
@@ -239,13 +236,17 @@ function TeacherInspection({ dashboard }) {
   const summary = dashboard?.summary ?? {};
   const recentAnnouncements = dashboard?.recentAnnouncements ?? [];
   const recentReclamations = dashboard?.recentReclamations ?? [];
-  const courses = dashboard?.courses ?? [];
-
-  const distinctModuleIds = useMemo(() => new Set(courses.map((c) => c.moduleId)), [courses]);
-  const distinctPromos = useMemo(() => new Set(courses.map((c) => c.promoId)), [courses]);
+  const pfeBreakdown = dashboard?.pfeBreakdown ?? [];
 
   const chartsData = useMemo(() => ({
-    coursesByPromo: countBy(courses, (c) => c.promoName),
+    studentsPerPfeGroup: pfeBreakdown.map((g) => ({
+      name: g.groupName,
+      value: g.studentCount ?? 0,
+    })),
+    pfeProjectsByStatus: [
+      { name: 'Active',    value: summary.activePfeProjects    ?? 0 },
+      { name: 'Finalized', value: summary.finalizedPfeProjects ?? 0 },
+    ].filter((d) => d.value > 0),
     documentsByStatus: [
       { name: 'Pending',    value: summary.pendingDocuments    ?? 0 },
       { name: 'Processing', value: summary.processingDocuments ?? 0 },
@@ -256,7 +257,7 @@ function TeacherInspection({ dashboard }) {
       { name: 'Pending',  value: summary.pendingReclamations ?? 0 },
       { name: 'Resolved', value: Math.max(0, (summary.reclamations ?? 0) - (summary.pendingReclamations ?? 0)) },
     ].filter((d) => d.value > 0),
-  }), [courses, summary]);
+  }), [pfeBreakdown, summary]);
 
   const hasDocuments = (summary.documents ?? 0) > 0;
 
@@ -265,15 +266,15 @@ function TeacherInspection({ dashboard }) {
       {/* ── KPI row 1 ──────────────────────────────────────── */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KPITile
-          title="Students"
-          value={summary.students ?? 0}
-          subtitle={`Across ${distinctPromos.size} promo${distinctPromos.size === 1 ? '' : 's'}`}
+          title="Supervised students"
+          value={summary.supervisedStudents ?? summary.students ?? 0}
+          subtitle={`Across ${summary.pfeGroups ?? 0} PFE group${(summary.pfeGroups ?? 0) === 1 ? '' : 's'}`}
           accent="brand"
         />
         <KPITile
-          title="Courses"
-          value={summary.courses ?? distinctModuleIds.size}
-          subtitle="Modules under responsibility"
+          title="PFE projects"
+          value={summary.pfeProjects ?? 0}
+          subtitle={`${summary.activePfeProjects ?? 0} active · ${summary.finalizedPfeProjects ?? 0} finalized`}
           accent="success"
         />
         <KPITile
@@ -303,10 +304,16 @@ function TeacherInspection({ dashboard }) {
       {/* ── Charts ───────────────────────────────────────── */}
       <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <TeacherChartCard
-          title="Courses by Promo"
-          data={chartsData.coursesByPromo}
+          title="Students per PFE Group"
+          data={chartsData.studentsPerPfeGroup}
           variant="bar"
-          color="#00C49F"
+          color="#0088FE"
+        />
+        <TeacherChartCard
+          title="PFE Projects"
+          data={chartsData.pfeProjectsByStatus}
+          variant="pie"
+          palette={['#FFBB28', '#00C49F']}
         />
         <TeacherChartCard
           title="Document Requests by Status"
@@ -319,12 +326,6 @@ function TeacherInspection({ dashboard }) {
           data={chartsData.reclamationsByStatus}
           variant="pie"
           palette={['#FFBB28', '#00C49F']}
-        />
-        <KPITile
-          title="Announcements"
-          value={summary.announcements ?? 0}
-          subtitle="Total published by this teacher"
-          accent="brand"
         />
       </section>
 
@@ -376,37 +377,33 @@ function TeacherInspection({ dashboard }) {
         />
       </section>
 
-      {/* ── Assigned courses ─────────────────────────────── */}
+      {/* ── Supervised PFE groups ───────────────────────── */}
       <section>
         <div className="flex items-baseline justify-between mb-3">
-          <h2 className="text-base font-semibold text-ink">Assigned courses</h2>
+          <h2 className="text-base font-semibold text-ink">Supervised PFE groups</h2>
           <span className="text-xs text-ink-tertiary">
-            {distinctModuleIds.size} module{distinctModuleIds.size === 1 ? '' : 's'}
+            {pfeBreakdown.length} group{pfeBreakdown.length === 1 ? '' : 's'}
           </span>
         </div>
-        {courses.length === 0 ? (
+        {pfeBreakdown.length === 0 ? (
           <EmptyState
-            title="No courses assigned"
-            description="This teacher has no modules in their scope."
+            title="No PFE groups supervised"
+            description="This teacher is not co-supervising any PFE groups."
           />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-            {courses.map((course, idx) => (
+            {pfeBreakdown.map((group) => (
               <div
-                key={course.enseignementId ?? `${course.moduleId}-${idx}`}
+                key={group.groupId}
                 className="bg-surface rounded-lg border border-edge shadow-sm p-4"
               >
-                <p className="text-sm font-semibold text-ink line-clamp-1">
-                  {course.moduleName}
-                  {course.moduleCode && (
-                    <span className="ml-2 text-xs text-ink-tertiary font-mono">
-                      {course.moduleCode}
-                    </span>
-                  )}
-                </p>
+                <p className="text-sm font-semibold text-ink line-clamp-1">{group.groupName}</p>
+                {group.subjectTitle ? (
+                  <p className="text-xs text-ink-tertiary mt-1 line-clamp-2">{group.subjectTitle}</p>
+                ) : null}
                 <p className="text-xs text-ink-tertiary mt-1">
-                  {course.promoName}
-                  {course.section ? ` · ${course.section}` : ''}
+                  {group.studentCount ?? 0} student{(group.studentCount ?? 0) === 1 ? '' : 's'}
+                  {group.isFinalized ? ' · finalized' : ' · active'}
                 </p>
               </div>
             ))}

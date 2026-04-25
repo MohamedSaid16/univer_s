@@ -139,12 +139,29 @@ export const getStudentPfeInfo = async (
 };
 
 export interface TeacherDashboardSummary extends DashboardSummary {
+  // Back-compat alias: now means "students this teacher supervises through
+  // PFE" (GroupMember whose group.coEncadrantId === enseignantId). The
+  // academic group/section/course concepts are removed.
   students: number;
-  courses: number;
   pendingDocuments: number;
   processingDocuments: number;
   approvedDocuments: number;
   rejectedDocuments: number;
+  // ── PFE-based teacher metrics ──────────────────────────────────────
+  supervisedStudents: number;
+  pfeGroups: number;
+  pfeProjects: number;
+  activePfeProjects: number;
+  finalizedPfeProjects: number;
+  averagePfeGroupSize: number;
+}
+
+export interface TeacherPfeGroupBreakdownEntry {
+  groupId: number;
+  groupName: string;
+  subjectTitle: string | null;
+  studentCount: number;
+  isFinalized: boolean;
 }
 
 // ── Student-scoped summary ───────────────────────────────────────────
@@ -211,14 +228,23 @@ export const buildStudentStatistics = async (input: {
 
 // ── Teacher-scoped summary ───────────────────────────────────────────
 /**
- * Scoped to the teacher's assigned promos (resolved by the caller via
- * resolveTeacherContext). Empty promoIds → everything zero, matching the
- * existing behaviour of getTeacherDashboard.
+ * Statistics for the teacher dashboard. Scoped by:
+ *   • userId         — for things authored by the teacher (announcements, doc requests).
+ *   • enseignantId   — for PFE supervision (GroupPfe.coEncadrantId, PfeSujet.enseignantId).
+ *   • promoIds       — kept for the reclamation scope (a teacher sees reclamations
+ *                      from students enrolled in promos they teach). Promo is part of
+ *                      the *kept* model. Section is no longer read or filtered on.
+ *
+ * The previous "students" count read every Etudiant in the teacher's promos
+ * (effectively all-students-in-the-class). That conflated "I teach this promo"
+ * with "I supervise this student" and was the only consumer of the academic
+ * group/section concept on this dashboard. It is replaced by a count of
+ * GroupMember rows whose group is co-supervised by this teacher.
  */
 export const buildTeacherStatistics = async (input: {
   userId: number;
+  enseignantId: number;
   promoIds: number[];
-  coursesCount: number;
 }): Promise<TeacherDashboardSummary> => {
   const hasPromos = input.promoIds.length > 0;
 
@@ -227,45 +253,94 @@ export const buildTeacherStatistics = async (input: {
     : { id: -1 };
 
   const docScope = { enseignant: { userId: input.userId } };
+  const pfeSupervisionScope = { group: { coEncadrantId: input.enseignantId } };
+  const pfeGroupScope = { coEncadrantId: input.enseignantId };
+  const pfeSubjectScope = { enseignantId: input.enseignantId };
 
   const [
     announcements,
     reclamations,
     pendingReclamations,
-    students,
     totalDocuments,
     pendingDocuments,
     processingDocuments,
     approvedDocuments,
     rejectedDocuments,
+    supervisedStudents,
+    pfeGroups,
+    pfeProjects,
+    finalizedPfeProjects,
   ] = await Promise.all([
     prisma.annonce.count({ where: { auteurId: input.userId } }),
     prisma.reclamation.count({ where: reclamationScope }),
     prisma.reclamation.count({
       where: { ...reclamationScope, status: { in: PENDING_RECLAMATION_STATUSES } },
     }),
-    hasPromos
-      ? prisma.etudiant.count({ where: { promoId: { in: input.promoIds } } })
-      : Promise.resolve(0),
     prisma.documentRequest.count({ where: docScope }),
     prisma.documentRequest.count({ where: { ...docScope, status: StatusDocumentRequest.en_attente } }),
     prisma.documentRequest.count({ where: { ...docScope, status: StatusDocumentRequest.en_traitement } }),
     prisma.documentRequest.count({ where: { ...docScope, status: StatusDocumentRequest.valide } }),
     prisma.documentRequest.count({ where: { ...docScope, status: StatusDocumentRequest.refuse } }),
+    prisma.groupMember.count({ where: pfeSupervisionScope }),
+    prisma.groupPfe.count({ where: pfeGroupScope }),
+    prisma.pfeSujet.count({ where: pfeSubjectScope }),
+    prisma.pfeSujet.count({
+      where: { ...pfeSubjectScope, assignmentStatus: "finalized" },
+    }),
   ]);
+
+  const activePfeProjects = Math.max(0, pfeProjects - finalizedPfeProjects);
+  const averagePfeGroupSize =
+    pfeGroups > 0 ? Math.round((supervisedStudents / pfeGroups) * 10) / 10 : 0;
 
   return {
     announcements,
     reclamations,
     pendingReclamations,
     documents: totalDocuments,
-    students,
-    courses: input.coursesCount,
+    // Back-compat alias: old field, new meaning (PFE-supervised students only).
+    students: supervisedStudents,
     pendingDocuments,
     processingDocuments,
     approvedDocuments,
     rejectedDocuments,
+    supervisedStudents,
+    pfeGroups,
+    pfeProjects,
+    activePfeProjects,
+    finalizedPfeProjects,
+    averagePfeGroupSize,
   };
+};
+
+/**
+ * Per-group breakdown for the "Students per PFE Group" chart on the teacher
+ * dashboard. One row per GroupPfe co-supervised by the teacher; uses a single
+ * query with a relational `_count` to avoid N+1.
+ */
+export const getTeacherPfeBreakdown = async (
+  enseignantId: number
+): Promise<TeacherPfeGroupBreakdownEntry[]> => {
+  const groups = await prisma.groupPfe.findMany({
+    where: { coEncadrantId: enseignantId },
+    select: {
+      id: true,
+      nom_ar: true,
+      nom_en: true,
+      sujetFinal: { select: { titre_ar: true, titre_en: true, assignmentStatus: true } },
+      _count: { select: { groupMembers: true } },
+    },
+    orderBy: { id: "asc" },
+  });
+
+  return groups.map((group) => ({
+    groupId: group.id,
+    groupName: group.nom_en || group.nom_ar || `Group #${group.id}`,
+    subjectTitle:
+      group.sujetFinal?.titre_en || group.sujetFinal?.titre_ar || null,
+    studentCount: group._count.groupMembers,
+    isFinalized: group.sujetFinal?.assignmentStatus === "finalized",
+  }));
 };
 
 // ── Admin global analytics ───────────────────────────────────────────

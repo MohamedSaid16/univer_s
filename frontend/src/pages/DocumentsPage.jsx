@@ -88,15 +88,9 @@ const buildDocumentBody = (formData, documentName) => {
 
 const buildOfficialHTML = ({ title, bodyHTML, requestId, ref, logoUrl, generatedOn }) => `
   <div style="font-family:'Segoe UI','Source Sans 3',Arial,sans-serif;color:#1a1a2e;padding:20px 32px;font-size:12px;background:#fff;">
-    <div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1a1a2e;padding-bottom:10px;margin-bottom:6px;gap:12px;">
-      <div style="text-align:right;font-size:9.5px;line-height:1.8;color:#222;direction:rtl;">
-        الجمهورية الجزائرية الديمقراطية الشعبية<br/>
-        وزارة التعليم العالي والبحث العلمي<br/>
-        جامعة ابن خلدون - تيارت<br/>
-        كلية الرياضيات والإعلام الآلي
-      </div>
-      ${logoUrl ? `<img src="${logoUrl}" crossorigin="anonymous" style="width:64px;height:64px;object-fit:contain;" alt="Logo"/>` : ''}
-      <div style="text-align:right;font-size:9.5px;line-height:1.8;color:#222;">
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;border-bottom:2px solid #1a1a2e;padding-bottom:14px;margin-bottom:6px;gap:8px;">
+      ${logoUrl ? `<img src="${logoUrl}" crossorigin="anonymous" style="width:72px;height:72px;object-fit:contain;" alt="Logo"/>` : ''}
+      <div style="text-align:center;font-size:10.5px;line-height:1.6;color:#222;font-weight:600;">
         République Algérienne Démocratique et Populaire<br/>
         Ministère de l'Enseignement Supérieur et de la Recherche Scientifique<br/>
         Université Ibn Khaldoun — Tiaret<br/>
@@ -200,10 +194,10 @@ const getStatusStyle = (status) => {
 };
 
 const STATUS_LABELS = {
-  en_attente: 'En attente',
-  en_traitement: 'En traitement',
-  valide: 'Validé',
-  refuse: 'Refusé',
+  en_attente: 'Pending',
+  en_traitement: 'Processing',
+  valide: 'Approved',
+  refuse: 'Rejected',
 };
 
 function normalizeRows(payload) {
@@ -277,40 +271,40 @@ function DocumentsHero({ eyebrow, title, description }) {
 const PROF_FIELDS = [
   {
     name: 'prenom',
-    label: 'Prénom',
+    label: 'First Name',
     required: true,
     placeholder: 'Ex: Ahmed',
   },
   {
     name: 'nom',
-    label: 'Nom',
+    label: 'Last Name',
     required: true,
     placeholder: 'Ex: Benali',
   },
   {
     name: 'email',
-    label: 'Email professionnel',
+    label: 'Professional Email',
     required: false,
-    placeholder: 'enseignant@univ-tiaret.dz',
+    placeholder: 'teacher@univ-tiaret.dz',
   },
   {
     name: 'grade',
     label: 'Grade',
     required: false,
-    placeholder: 'Maître de conférences',
+    placeholder: 'Assistant Professor',
   },
   {
     name: 'departement',
-    label: 'Département',
+    label: 'Department',
     required: false,
-    placeholder: 'Informatique',
+    placeholder: 'Computer Science',
   },
   {
     name: 'observations',
     label: 'Observations',
     required: false,
     multiline: true,
-    placeholder: 'Notes complémentaires pour l\'attestation...',
+    placeholder: 'Additional notes for the certificate...',
   },
 ];
 
@@ -331,7 +325,7 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
   const validate = () => {
     const missing = PROF_FIELDS.filter((f) => f.required && !String(form[f.name] || '').trim());
     if (missing.length) {
-      alert(`Champs obligatoires manquants : ${missing.map((f) => f.label).join(', ')}`);
+      alert(`Missing required fields: ${missing.map((f) => f.label).join(', ')}`);
       return false;
     }
     return true;
@@ -349,11 +343,11 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
           <div className="relative flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Administration</p>
-              <h2 className="mt-1 text-xl font-bold text-ink">Informations de l'enseignant</h2>
+              <h2 className="mt-1 text-xl font-bold text-ink">Teacher Information</h2>
               <p className="mt-0.5 text-sm text-ink-secondary">
-                {requestId && <span className="font-medium text-ink">Demande #{requestId} - </span>}
+                {requestId && <span className="font-medium text-ink">Request #{requestId} - </span>}
                 {documentName && <span className="font-medium text-ink">{documentName} - </span>}
-                Le document officiel sera généré en PDF puis transmis au demandeur.
+                The official document will be generated as a PDF and sent to the requester.
               </p>
 
               {autoFilled && (
@@ -361,14 +355,14 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
                   <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M9 12l2 2 4-4" /><circle cx="12" cy="12" r="10" />
                   </svg>
-                  Informations pré-remplies depuis la base de données - vérifiez avant de générer.
+                  Pre-filled information from the database - verify before generating.
                 </div>
               )}
 
               {fetchingData && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
                   <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600" />
-                  Chargement des informations de l'enseignant...
+                  Loading teacher information...
                 </div>
               )}
             </div>
@@ -446,20 +440,20 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
             disabled={loading}
             className="rounded-xl border border-edge bg-surface px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-canvas disabled:opacity-50"
           >
-            Annuler
+            Cancel
           </button>
           {onPreview && (
             <button
               onClick={handlePreview}
               disabled={loading || fetchingData}
               className="rounded-xl border border-edge bg-surface px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-canvas disabled:opacity-50 flex items-center gap-2"
-              title="Ouvrir un aperçu imprimable dans un nouvel onglet"
+              title="Open a printable preview in a new tab"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
-              Aperçu
+              Preview
             </button>
           )}
           {onDownload && (
@@ -467,14 +461,14 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
               onClick={handleDownload}
               disabled={loading || fetchingData}
               className="rounded-xl border border-edge bg-surface px-4 py-2.5 text-sm font-medium text-ink transition hover:bg-canvas disabled:opacity-50 flex items-center gap-2"
-              title="Télécharger le PDF sans l'envoyer"
+              title="Download PDF without sending it"
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              Télécharger
+              Download
             </button>
           )}
           <button
@@ -485,7 +479,7 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
             {loading ? (
               <>
                 <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                Génération...
+                Generating...
               </>
             ) : (
               <>
@@ -493,7 +487,7 @@ function ProfFormModal({ requestId, documentName, onClose, onSubmit, onPreview, 
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
                 </svg>
-                Générer le PDF & Envoyer
+                Generate PDF & Send
               </>
             )}
           </button>
@@ -570,9 +564,9 @@ function TeacherView() {
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 16px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Hero Section */}
       <DocumentsHero
-        eyebrow="Espace Enseignant"
+        eyebrow="Teacher Space"
         title="Documents"
-        description="Soumettez une demande de document, suivez son état, puis téléchargez le fichier une fois validé."
+        description="Submit a document request, track its status, and download the file once approved."
       />
 
       {/* KPI Header - Teacher Context */}
@@ -583,9 +577,9 @@ function TeacherView() {
       }}>
         {[
           { label: 'Total', value: summary.total, accent: 'brand' },
-          { label: 'En attente', value: summary.pending, accent: 'warning' },
-          { label: 'En traitement', value: summary.processing, accent: 'warning' },
-          { label: 'Validées', value: summary.approved, accent: 'success' },
+          { label: 'Pending', value: summary.pending, accent: 'warning' },
+          { label: 'Processing', value: summary.processing, accent: 'warning' },
+          { label: 'Approved', value: summary.approved, accent: 'success' },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -631,9 +625,9 @@ function TeacherView() {
           }}
         >
           <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)', margin: 0 }}>Nouvelle demande</h2>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)', margin: 0 }}>New Request</h2>
             <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '4px 0 0 0' }}>
-              Sélectionnez un type de document et envoyez votre demande
+              Select a document type and send your request
             </p>
           </div>
           <button
@@ -651,7 +645,7 @@ function TeacherView() {
               transition: 'all 150ms ease-out',
             }}
           >
-            {expandForm ? 'Annuler' : 'Nouvelle demande'}
+            {expandForm ? 'Cancel' : 'New Request'}
           </button>
         </div>
 
@@ -673,10 +667,10 @@ function TeacherView() {
                   transition: 'all 150ms ease-out',
                 }}
               >
-                <option value="">Choisir le type de document</option>
+                <option value="">Choose document type</option>
                 {docTypes.map((doc) => (
                   <option key={doc.id} value={doc.id}>
-                    {doc.nom_ar || doc.nom_en || 'Document'} - {doc.categorie}
+                    {doc.nom_en || doc.nom_ar || 'Document'} - {doc.categorie}
                   </option>
                 ))}
               </select>
@@ -697,7 +691,7 @@ function TeacherView() {
                   transition: 'all 150ms ease-out',
                 }}
               >
-                {requestLoading ? 'Envoi...' : 'Envoyer la demande'}
+                {requestLoading ? 'Sending...' : 'Send Request'}
               </button>
             </div>
           </div>
@@ -719,16 +713,16 @@ function TeacherView() {
         {/* Header with Search */}
         <div style={{ padding: '24px', borderBottom: '1px solid var(--color-edge-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           <div>
-            <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)', margin: 0 }}>Mes demandes</h2>
+            <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)', margin: 0 }}>My Requests</h2>
             <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '4px 0 0 0' }}>
-              Historique et état des demandes ({filtered.length})
+              Request history and status ({filtered.length})
             </p>
           </div>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Rechercher..."
+            placeholder="Search..."
             style={{
               borderRadius: '6px',
               border: '1px solid var(--color-edge)',
@@ -748,7 +742,7 @@ function TeacherView() {
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', gap: '12px', color: 'var(--color-ink-secondary)' }}>
               <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--color-edge)', borderTop: '2px solid var(--color-brand)', animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: '13px' }}>Chargement...</span>
+              <span style={{ fontSize: '13px' }}>Loading...</span>
             </div>
           ) : filtered.length ? (
             <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
@@ -793,7 +787,7 @@ function TeacherView() {
                       </span>
                     </div>
                     <p style={{ fontSize: '11px', color: 'var(--color-ink-tertiary)', margin: '0 0 12px 0' }}>
-                      Mis à jour : {doc.updatedAt || 'N/A'}
+                      Updated : {doc.updatedAt || 'N/A'}
                     </p>
                     {doc.status === 'valide' && doc.documentUrl ? (
                       <a
@@ -814,7 +808,7 @@ function TeacherView() {
                           transition: 'all 150ms ease-out',
                         }}
                       >
-                        Télécharger
+                        Download
                       </a>
                     ) : (
                       <div style={{
@@ -829,7 +823,7 @@ function TeacherView() {
                         fontWeight: 500,
                         border: '1px solid var(--color-edge-subtle)',
                       }}>
-                        {doc.status === 'refuse' ? 'Demande refusée' : 'En attente de traitement'}
+                        {doc.status === 'refuse' ? 'Request rejected' : 'Pending processing'}
                       </div>
                     )}
                   </div>
@@ -844,8 +838,8 @@ function TeacherView() {
               padding: '48px 24px',
               textAlign: 'center',
             }}>
-              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>Aucune demande trouvée.</p>
-              <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '8px 0 0 0' }}>Soumettez votre première demande ci-dessus.</p>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>No requests found.</p>
+              <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '8px 0 0 0' }}>Submit your first request above.</p>
             </div>
           )}
         </div>
@@ -993,13 +987,13 @@ function AdminView() {
 
       setFeedback({
         type: 'success',
-        message: action === 'valide' ? 'Demande validee avec succes.' : 'Demande refusee avec succes.',
+        message: action === 'valide' ? 'Request approved successfully.' : 'Request rejected successfully.',
       });
       await loadRequests();
     } catch (error) {
       setFeedback({
         type: 'error',
-        message: error?.message || 'Action impossible pour le moment.',
+        message: error?.message || 'Action unavailable right now.',
       });
     } finally {
       setActionLoading(null);
@@ -1044,8 +1038,8 @@ function AdminView() {
       {/* Hero Section */}
       <DocumentsHero
         eyebrow="Administration"
-        title="Gestion des documents"
-        description="Traitez les demandes des enseignants : remplissez les informations, générez le PDF officiel et transmettez-le automatiquement au demandeur."
+        title="Document Management"
+        description="Process teacher requests: fill in the information, generate the official PDF and transmit it automatically to the requester."
       />
 
       {/* KPI Analytics Header - High-impact metrics */}
@@ -1058,9 +1052,9 @@ function AdminView() {
       >
         {[
           { label: 'Total', value: counts.total, accent: 'ink', bg: 'rgba(26, 29, 35, 0.05)' },
-          { label: 'En attente', value: counts.en_attente, accent: 'warning', bg: 'rgba(202, 138, 4, 0.05)' },
-          { label: 'En traitement', value: counts.en_traitement, accent: 'warning', bg: 'rgba(202, 138, 4, 0.08)' },
-          { label: 'Validées', value: counts.valide, accent: 'success', bg: 'rgba(22, 163, 74, 0.05)' },
+          { label: 'Pending', value: counts.en_attente, accent: 'warning', bg: 'rgba(202, 138, 4, 0.05)' },
+          { label: 'Processing', value: counts.en_traitement, accent: 'warning', bg: 'rgba(202, 138, 4, 0.08)' },
+          { label: 'Approved', value: counts.valide, accent: 'success', bg: 'rgba(22, 163, 74, 0.05)' },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -1139,10 +1133,10 @@ function AdminView() {
         >
           <div>
             <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-ink)', margin: 0 }}>
-              Toutes les demandes
+              All requests
             </h2>
             <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '4px 0 0 0' }}>
-              {filtered.length} demande{filtered.length !== 1 ? 's' : ''} trouvée{filtered.length !== 1 ? 's' : ''}
+              {filtered.length} request{filtered.length !== 1 ? 's' : ''} found
             </p>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -1160,17 +1154,17 @@ function AdminView() {
                 transition: 'all 150ms ease-out',
               }}
             >
-              <option value="">Tous les statuts</option>
-              <option value="en_attente">En attente</option>
-              <option value="en_traitement">En traitement</option>
-              <option value="valide">Validé</option>
-              <option value="refuse">Refusé</option>
+              <option value="">All statuses</option>
+              <option value="en_attente">Pending</option>
+              <option value="en_traitement">Processing</option>
+              <option value="valide">Approved</option>
+              <option value="refuse">Rejected</option>
             </select>
             <input
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher..."
+              placeholder="Search..."
               style={{
                 borderRadius: '6px',
                 border: '1px solid var(--color-edge)',
@@ -1191,7 +1185,7 @@ function AdminView() {
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', gap: '12px', color: 'var(--color-ink-secondary)' }}>
               <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: '2px solid var(--color-edge)', borderTop: '2px solid var(--color-brand)', animation: 'spin 1s linear infinite' }} />
-              <span>Chargement...</span>
+              <span>Loading...</span>
             </div>
           ) : filtered.length ? (
             <table
@@ -1203,11 +1197,11 @@ function AdminView() {
             >
               <thead>
                 <tr style={{ background: 'var(--color-surface-200)', borderBottom: '1px solid var(--color-edge)' }}>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enseignant</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Teacher</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Document</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Catégorie</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Category</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</th>
-                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Statut</th>
+                  <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', fontWeight: 600, color: 'var(--color-ink-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Actions</th>
                 </tr>
               </thead>
@@ -1260,7 +1254,7 @@ function AdminView() {
                               type="button"
                               onClick={() => openProfModal(row)}
                               disabled={generating === row.id}
-                              title="Générer le document PDF"
+                              title="Generate PDF document"
                               style={{
                                 borderRadius: '4px',
                                 border: '1px solid var(--color-edge)',
@@ -1357,8 +1351,8 @@ function AdminView() {
               textAlign: 'center',
               margin: '16px',
             }}>
-              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>Aucune demande trouvée.</p>
-              <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '8px 0 0 0' }}>Ajustez les filtres ou attendez de nouvelles demandes.</p>
+              <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-ink)', margin: 0 }}>No requests found.</p>
+              <p style={{ fontSize: '12px', color: 'var(--color-ink-secondary)', margin: '8px 0 0 0' }}>Adjust filters or wait for new requests.</p>
             </div>
           )}
         </div>

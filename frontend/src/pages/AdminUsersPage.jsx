@@ -73,39 +73,36 @@ const waitForNodeImages = async (container) => {
 };
 
 const exportHtmlAsPdf = async ({ html, fileName }) => {
-  const html2pdf = await getHtml2Pdf();
-  const container = document.createElement('div');
-  container.style.position = 'fixed';
-  container.style.left = '0';
-  container.style.top = '0';
-  container.style.width = '210mm';
-  container.style.maxHeight = '100vh';
-  container.style.overflow = 'auto';
-  container.style.opacity = '0';
-  container.style.pointerEvents = 'none';
-  container.style.zIndex = '-1';
-  container.style.background = '#ffffff';
-  container.innerHTML = html;
-  document.body.appendChild(container);
-
-  try {
-    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
-    await waitForNodeImages(container);
-
-    await html2pdf()
-      .from(container)
-      .set({
-        filename: fileName,
-        margin: [10, 10, 10, 10],
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css', 'legacy'] },
-      })
-      .save();
-  } finally {
-    document.body.removeChild(container);
+  // Use native print dialog to match AdminUsersListPage.jsx perfectly
+  // This completely eliminates "blank page" bugs from html2pdf.js and ensures crisp, selectable text.
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Veuillez autoriser les pop-ups pour générer le PDF.");
+    return;
   }
+
+  const title = fileName ? fileName.replace('.pdf', '') : 'Export PDF';
+  const fullHtml = html.includes('<!DOCTYPE html>') ? html : `
+    <!DOCTYPE html>
+    <html lang="fr">
+      <head>
+        <meta charset="utf-8" />
+        <title>${title}</title>
+      </head>
+      <body>
+        ${html}
+      </body>
+    </html>
+  `;
+
+  printWindow.document.write(fullHtml);
+  printWindow.document.close();
+
+  // Short delay to ensure browser paints the DOM (and loads base64 logo) before print dialog opens
+  setTimeout(() => {
+    printWindow.focus();
+    printWindow.print();
+  }, 250);
 };
 
 export default function AdminUsersPage() {
@@ -523,20 +520,20 @@ export default function AdminUsersPage() {
       : '';
 
     return `
-      <style>
-        .export-root * { margin: 0; padding: 0; box-sizing: border-box; }
-        .export-root { font-family: 'Arial', 'Calibri', sans-serif; padding: 20px; color: #000000; background: #ffffff; }
-        .export-root .document-container { max-width: 1200px; margin: 0 auto; }
-        .export-root .header { text-align: center; margin-bottom: 30px; padding: 20px; }
-        .export-root .arabic-text { font-family: 'Traditional Arabic', 'Arial', sans-serif; font-size: 16px; margin: 10px 0; }
-        .export-root .title { font-size: 20px; font-weight: bold; margin: 20px 0 10px 0; text-align: center; }
-        .export-root .rule { border-top: 2px solid #000000; margin: 15px 0; }
-        .export-root .date-info { text-align: right; margin: 20px 0; font-size: 12px; }
-        .export-root table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 11px; }
-        .export-root th { border: 1px solid #000000; padding: 10px 8px; background-color: #e8e8e8; font-weight: bold; text-align: center; font-size: 12px; }
-        .export-root td { border: 1px solid #000000; padding: 8px; vertical-align: top; }
-      </style>
       <div class="export-root">
+        <style>
+          .export-root * { margin: 0; padding: 0; box-sizing: border-box; }
+          .export-root { font-family: 'Arial', 'Calibri', sans-serif; padding: 20px; color: #000000; background: #ffffff; min-height: 100vh; }
+          .export-root .document-container { max-width: 1200px; margin: 0 auto; background: #ffffff; }
+          .export-root .header { text-align: center; margin-bottom: 30px; padding: 20px; }
+          .export-root .arabic-text { font-family: 'Traditional Arabic', 'Arial', sans-serif; font-size: 16px; margin: 10px 0; }
+          .export-root .title { font-size: 20px; font-weight: bold; margin: 20px 0 10px 0; text-align: center; }
+          .export-root .rule { border-top: 2px solid #000000; margin: 15px 0; }
+          .export-root .date-info { text-align: right; margin: 20px 0; font-size: 12px; }
+          .export-root table { width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 11px; }
+          .export-root th { border: 1px solid #000000; padding: 10px 8px; background-color: #e8e8e8 !important; font-weight: bold; text-align: center; font-size: 12px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .export-root td { border: 1px solid #000000; padding: 8px; vertical-align: top; }
+        </style>
         <div class="document-container">
           <div class="header">
             <div class="arabic-text">
@@ -611,17 +608,14 @@ export default function AdminUsersPage() {
             </tr>`;
         }).join('');
 
-    return `<!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="utf-8" />
-<title>${escapeHtml(title)}</title>
+    return `
+<div class="pdf-export-root">
 <style>
 /* ── Reset ─────────────────────────────────────────────────────── */
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+.pdf-export-root *, .pdf-export-root *::before, .pdf-export-root *::after{margin:0;padding:0;box-sizing:border-box;}
 
 /* ── Root ──────────────────────────────────────────────────────── */
-body{
+.pdf-export-root {
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
   font-size:13px;
   line-height:1.5;
@@ -633,10 +627,10 @@ body{
 }
 
 /* ── Page wrapper ───────────────────────────────────────────────── */
-.page{max-width:760px;margin:0 auto;}
+.pdf-export-root .page{max-width:760px;margin:0 auto;}
 
 /* ── Letterhead card ────────────────────────────────────────────── */
-.letterhead{
+.pdf-export-root .letterhead{
   background:${C.surface};
   border:1px solid ${C.edge};
   border-radius:16px;
@@ -645,82 +639,82 @@ body{
   margin-bottom:12px;
   text-align:center;
 }
-.ministry{
+.pdf-export-root .ministry{
   font-size:13px;font-weight:600;color:${C.ink};
   line-height:1.8;direction:rtl;text-align:center;margin-bottom:10px;
 }
-.logo-wrap{margin:10px auto;}
-.logo-wrap img{width:64px;height:64px;object-fit:contain;}
-.uni-block{font-size:12px;color:${C.inkSec};line-height:1.8;margin:10px 0;}
-.uni-block strong{font-size:14px;font-weight:700;color:${C.ink};display:block;margin-bottom:2px;}
-.rule{border:none;border-top:2px solid ${C.edge};margin:14px 0;}
-.doc-title{
+.pdf-export-root .logo-wrap{margin:10px auto;}
+.pdf-export-root .logo-wrap img{width:64px;height:64px;object-fit:contain;}
+.pdf-export-root .uni-block{font-size:12px;color:${C.inkSec};line-height:1.8;margin:10px 0;}
+.pdf-export-root .uni-block strong{font-size:14px;font-weight:700;color:${C.ink};display:block;margin-bottom:2px;}
+.pdf-export-root .rule{border:none;border-top:2px solid ${C.edge};margin:14px 0;}
+.pdf-export-root .doc-title{
   font-size:16px;font-weight:700;letter-spacing:-0.01em;
   color:${C.ink};margin:6px 0 3px;
 }
-.doc-date{font-size:11px;color:${C.inkTert};}
+.pdf-export-root .doc-date{font-size:11px;color:${C.inkTert};}
 
 /* ── Table card ─────────────────────────────────────────────────── */
-.table-card{
+.pdf-export-root .table-card{
   background:${C.surface};
   border:1px solid ${C.edge};
   border-radius:16px;
   box-shadow:${C.shadow};
   overflow:hidden;
 }
-.card-header{
+.pdf-export-root .card-header{
   display:flex;align-items:center;justify-content:space-between;
   padding:14px 18px;border-bottom:1px solid ${C.edgeSubtle};
 }
-.card-title{font-size:13px;font-weight:600;color:${C.ink};}
-.badge{
+.pdf-export-root .card-title{font-size:13px;font-weight:600;color:${C.ink};}
+.pdf-export-root .badge{
   font-size:11px;font-weight:600;color:${C.brand};
   background:${C.brandLight};border:1px solid ${C.brandBorder};
   border-radius:999px;padding:2px 10px;white-space:nowrap;
 }
 
 /* ── Table ──────────────────────────────────────────────────────── */
-table{width:100%;border-collapse:collapse;font-size:12px;}
+.pdf-export-root table{width:100%;border-collapse:collapse;font-size:12px;}
 
-thead tr{background:${C.surface200};-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-thead th{
+.pdf-export-root thead tr{background:${C.surface200};-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.pdf-export-root thead th{
   padding:9px 14px;font-size:10px;font-weight:600;
   text-transform:uppercase;letter-spacing:0.08em;
   color:${C.inkTert};text-align:left;
   border-bottom:1px solid ${C.edge};
 }
-thead th.col-idx{text-align:center;width:48px;}
+.pdf-export-root thead th.col-idx{text-align:center;width:48px;}
 
-tbody tr{border-bottom:1px solid ${C.edgeSubtle};}
-tbody tr:last-child{border-bottom:none;}
+.pdf-export-root tbody tr{border-bottom:1px solid ${C.edgeSubtle};}
+.pdf-export-root tbody tr:last-child{border-bottom:none;}
 
-tbody td{padding:10px 14px;color:${C.ink};vertical-align:middle;}
-tbody td.col-idx{
+.pdf-export-root tbody td{padding:10px 14px;color:${C.ink};vertical-align:middle;}
+.pdf-export-root tbody td.col-idx{
   text-align:center;font-size:11px;font-weight:500;color:${C.inkTert};
   background:${C.canvas};border-right:1px solid ${C.edgeSubtle};
   width:48px;-webkit-print-color-adjust:exact;print-color-adjust:exact;
 }
-.col-name{font-weight:500;color:${C.ink};}
-.col-email{color:${C.inkSec};font-size:11.5px;}
-.col-phone{color:${C.inkSec};font-size:11.5px;}
-.no-phone{color:${C.inkMuted};font-style:italic;}
-.empty-cell{
+.pdf-export-root .col-name{font-weight:500;color:${C.ink};}
+.pdf-export-root .col-email{color:${C.inkSec};font-size:11.5px;}
+.pdf-export-root .col-phone{color:${C.inkSec};font-size:11.5px;}
+.pdf-export-root .no-phone{color:${C.inkMuted};font-style:italic;}
+.pdf-export-root .empty-cell{
   text-align:center;padding:28px 14px;
   color:${C.inkTert};font-size:12px;font-style:italic;
 }
 
 /* ── Footer ─────────────────────────────────────────────────────── */
-.doc-footer{
+.pdf-export-root .doc-footer{
   margin-top:16px;padding:0 2px;
   display:flex;align-items:flex-start;justify-content:space-between;
 }
-.footer-note{font-size:10px;color:${C.inkTert};line-height:1.6;}
-.sig-zone{text-align:right;min-width:180px;}
-.sig-label{
+.pdf-export-root .footer-note{font-size:10px;color:${C.inkTert};line-height:1.6;}
+.pdf-export-root .sig-zone{text-align:right;min-width:180px;}
+.pdf-export-root .sig-label{
   font-size:9.5px;font-weight:600;text-transform:uppercase;
   letter-spacing:0.06em;color:${C.inkTert};margin-bottom:28px;
 }
-.sig-line{
+.pdf-export-root .sig-line{
   border-top:1px solid ${C.edgeStrong};
   width:160px;margin-left:auto;
   padding-top:5px;font-size:9.5px;
@@ -729,14 +723,12 @@ tbody td.col-idx{
 
 /* ── Print overrides ────────────────────────────────────────────── */
 @media print{
-  body{background:${C.surface};padding:0;}
-  .table-card,.letterhead{box-shadow:none;}
+  .pdf-export-root {background:${C.surface};padding:0;}
+  .pdf-export-root .table-card, .pdf-export-root .letterhead{box-shadow:none;}
 }
 </style>
-</head>
-<body>
-<div class="page">
 
+<div class="page">
   <!-- Letterhead -->
   <div class="letterhead">
     <div class="ministry">
@@ -789,10 +781,8 @@ tbody td.col-idx{
       <div class="sig-line">Signature &amp; Cachet</div>
     </div>
   </div>
-
 </div>
-</body>
-</html>`;
+</div>`;
   };
 
   const exportSaasUsersPdf = async (scope) => {
@@ -918,18 +908,45 @@ tbody td.col-idx{
     setPdfExportingScope(scope);
 
     try {
-      const { blob, fileName } = await authAPI.adminExportUsersPdf(scope);
-      const objectUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objectUrl;
-      link.download = fileName || `official-users-${scope}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(objectUrl);
+      const res = await authAPI.adminGetUsers();
+      const allUsers = Array.isArray(res?.data) ? res.data : [];
+
+      let filtered = allUsers;
+      let title = 'LISTE DES UTILISATEURS';
+      if (scope === 'students') {
+        filtered = allUsers.filter((u) => (u.roles || []).includes('etudiant'));
+        title = 'LISTE DES ÉTUDIANTS';
+      } else if (scope === 'teachers') {
+        filtered = allUsers.filter((u) => (u.roles || []).includes('enseignant'));
+        title = 'LISTE DES ENSEIGNANTS';
+      }
+
+      if (!filtered.length) {
+        setError('Aucun utilisateur trouvé pour ce périmètre.');
+        return;
+      }
+
+      const rows = filtered.map((u) => ({
+        nom:       u.nom       || '',
+        prenom:    u.prenom    || '',
+        email:     u.email     || '',
+        telephone: u.telephone || '',
+      }));
+
+      const today = new Date();
+      const dateLabel = today.toLocaleDateString('fr-FR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric',
+      });
+      const dateStamp = today.toISOString().slice(0, 10);
+
+      const html = buildOfficialDocumentHtml({ title, rows, dateLabel });
+      await exportHtmlAsPdf({ html, fileName: `liste_officielle_${scope}_${dateStamp}.pdf` });
 
       setMessage('Official PDF export generated successfully.');
     } catch (err) {
+      console.error(err);
       setError(err.message || 'Failed to generate official users PDF export.');
     } finally {
       setPdfExportingScope('');
@@ -1063,45 +1080,6 @@ tbody td.col-idx{
           </Button>
         </div>
 
-        {/* SaaS-design client-side PDF (Columns: N°, Nom et Prénom, Email, Téléphone) */}
-        <div className="mt-5 rounded-xl border border-edge bg-canvas px-5 py-4">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-brand">Design moderne · client-side</p>
-          <p className="mb-3 text-xs text-ink-secondary">
-            Colonnes : N°, Nom et Prénom, Email, Téléphone — rendu dans le navigateur avec le design du tableau de bord.
-          </p>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              onClick={() => exportSaasUsersPdf('all')}
-              loading={saasExportingScope === 'all'}
-              variant="primary"
-              size="sm"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Tous les utilisateurs
-            </Button>
-            <Button
-              type="button"
-              onClick={() => exportSaasUsersPdf('teachers')}
-              loading={saasExportingScope === 'teachers'}
-              variant="secondary"
-              size="sm"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Enseignants
-            </Button>
-            <Button
-              type="button"
-              onClick={() => exportSaasUsersPdf('students')}
-              loading={saasExportingScope === 'students'}
-              variant="secondary"
-              size="sm"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Étudiants
-            </Button>
-          </div>
-        </div>
 
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           <label className="block">

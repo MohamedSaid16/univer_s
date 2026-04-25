@@ -67,8 +67,13 @@ function hasAdminRole(user) {
 
 function DisciplinaryLandingRedirect() {
   const { user } = useAuth();
-  const targetPath = hasAdminRole(user)
+  const roles = Array.isArray(user?.roles) ? user.roles.map(r => String(r || '').toLowerCase()) : [];
+  const isAdmin = roles.includes('admin');
+  const isStudent = roles.some(r => ['etudiant', 'student'].includes(r));
+  const targetPath = isAdmin
     ? '/dashboard/discipline/admin'
+    : isStudent
+    ? '/dashboard/discipline/student'
     : '/dashboard/discipline/report';
 
   return <Navigate to={targetPath} replace />;
@@ -165,7 +170,7 @@ function App() {
               <Route
                 path="/dashboard/disciplinary"
                 element={
-                  <ProtectedRoute allowedRoles={['enseignant', 'admin']}>
+                  <ProtectedRoute allowedRoles={['enseignant', 'admin', 'etudiant', 'student']}>
                     <DashboardLayout><DisciplinaryLandingRedirect /></DashboardLayout>
                   </ProtectedRoute>
                 }
@@ -194,6 +199,14 @@ function App() {
                     accessFn={(user) => Array.isArray(user?.memberships) && user.memberships.some((m) => String(m?.role || '').toLowerCase() === 'president')}
                   >
                     <DashboardLayout><PresidentDisciplinaryView /></DashboardLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/discipline/student"
+                element={
+                  <ProtectedRoute allowedRoles={['etudiant', 'student']}>
+                    <DashboardLayout><DisciplinaryCasesPage role="student" /></DashboardLayout>
                   </ProtectedRoute>
                 }
               />

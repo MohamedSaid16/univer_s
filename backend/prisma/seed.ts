@@ -224,6 +224,22 @@ async function main() {
       return existing;
     }
 
+    // The student matricule is unique across the etudiants table. A prior
+    // partial run (or a different fixture user) may already own it. Detect
+    // and skip rather than blowing up on a unique-constraint violation.
+    if (data.etudiantData) {
+      const matriculeOwner = await prisma.etudiant.findUnique({
+        where: { matricule: data.etudiantData.matricule },
+        select: { user: { select: { id: true, email: true } } },
+      });
+      if (matriculeOwner) {
+        console.log(
+          `  ⚠️  matricule ${data.etudiantData.matricule} already owned by ${matriculeOwner.user.email} — skipping ${data.email}`
+        );
+        return matriculeOwner.user;
+      }
+    }
+
     const user = await prisma.user.create({
       data: {
         email: data.email,
@@ -428,42 +444,42 @@ async function main() {
     descriptionAr: string;
     descriptionEn: string;
   }> = [
-    {
-      nomAr: "شهادة عمل",
-      nomEn: "Work Certificate",
-      categorie: "administratif",
-      descriptionAr: "وثيقة تثبت مزاولة مهام التدريس داخل المؤسسة.",
-      descriptionEn: "Document certifying active teaching duties at the institution.",
-    },
-    {
-      nomAr: "شهادة تدريس",
-      nomEn: "Teaching Assignment Certificate",
-      categorie: "enseignement",
-      descriptionAr: "وثيقة توضح الوحدات والأفواج المكلف بها الأستاذ.",
-      descriptionEn: "Certificate listing assigned modules and teaching groups.",
-    },
-    {
-      nomAr: "قرار العطلة العلمية",
-      nomEn: "Academic Leave Decision",
-      categorie: "scientifique",
-      descriptionAr: "وثيقة إدارية خاصة بالعطلة العلمية أو البحثية.",
-      descriptionEn: "Administrative document related to scientific/academic leave.",
-    },
-    {
-      nomAr: "إفادة المشاركة البيداغوجية",
-      nomEn: "Pedagogical Participation Attestation",
-      categorie: "pedagogique",
-      descriptionAr: "إفادة بالمشاركة في اللجان أو الأنشطة البيداغوجية.",
-      descriptionEn: "Attestation of participation in pedagogical committees or activities.",
-    },
-    {
-      nomAr: "وثيقة إدارية أخرى",
-      nomEn: "Other Administrative Document",
-      categorie: "autre",
-      descriptionAr: "أي وثيقة غير مصنفة ضمن الأنواع السابقة.",
-      descriptionEn: "Any document not covered by other categories.",
-    },
-  ];
+      {
+        nomAr: "شهادة عمل",
+        nomEn: "Work Certificate",
+        categorie: "administratif",
+        descriptionAr: "وثيقة تثبت مزاولة مهام التدريس داخل المؤسسة.",
+        descriptionEn: "Document certifying active teaching duties at the institution.",
+      },
+      {
+        nomAr: "شهادة تدريس",
+        nomEn: "Teaching Assignment Certificate",
+        categorie: "enseignement",
+        descriptionAr: "وثيقة توضح الوحدات والأفواج المكلف بها الأستاذ.",
+        descriptionEn: "Certificate listing assigned modules and teaching groups.",
+      },
+      {
+        nomAr: "قرار العطلة العلمية",
+        nomEn: "Academic Leave Decision",
+        categorie: "scientifique",
+        descriptionAr: "وثيقة إدارية خاصة بالعطلة العلمية أو البحثية.",
+        descriptionEn: "Administrative document related to scientific/academic leave.",
+      },
+      {
+        nomAr: "إفادة المشاركة البيداغوجية",
+        nomEn: "Pedagogical Participation Attestation",
+        categorie: "pedagogique",
+        descriptionAr: "إفادة بالمشاركة في اللجان أو الأنشطة البيداغوجية.",
+        descriptionEn: "Attestation of participation in pedagogical committees or activities.",
+      },
+      {
+        nomAr: "وثيقة إدارية أخرى",
+        nomEn: "Other Administrative Document",
+        categorie: "autre",
+        descriptionAr: "أي وثيقة غير مصنفة ضمن الأنواع السابقة.",
+        descriptionEn: "Any document not covered by other categories.",
+      },
+    ];
 
   const ensureDocumentType = async (item: (typeof defaultDocumentTypes)[number]) => {
     const existing = await prisma.documentType.findFirst({

@@ -150,8 +150,8 @@ export const getAdminDashboardStats = async (): Promise<AdminDashboardStats> => 
         openCases: openDisciplinaryCases,
         closedCases: closedDisciplinaryCases,
         byGravity: {
-          mineure: minorCases,
-          majeure: majorCases,
+          faible: minorCases,
+          moyenne: majorCases,
           grave: severeCases,
         },
       },

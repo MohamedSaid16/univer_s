@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, GraduationCap, UserCog } from 'lucide-react';
+import { ArrowLeft, GraduationCap } from 'lucide-react';
 import { authAPI } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -19,11 +19,9 @@ export default function AdminAcademicAssignmentsPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [data, setData] = useState({ promos: [], modules: [], students: [], teachers: [] });
+  const [data, setData] = useState({ promos: [], students: [] });
   const [savingStudentByUserId, setSavingStudentByUserId] = useState({});
-  const [savingTeacherByUserId, setSavingTeacherByUserId] = useState({});
   const [studentPromoByUserId, setStudentPromoByUserId] = useState({});
-  const [teacherAssignmentByUserId, setTeacherAssignmentByUserId] = useState({});
 
   const loadData = async () => {
     setLoading(true);
@@ -33,27 +31,12 @@ export default function AdminAcademicAssignmentsPage() {
       const payload = response?.data || {};
       const normalized = {
         promos: Array.isArray(payload.promos) ? payload.promos : [],
-        modules: Array.isArray(payload.modules) ? payload.modules : [],
         students: Array.isArray(payload.students) ? payload.students : [],
-        teachers: Array.isArray(payload.teachers) ? payload.teachers : [],
       };
       setData(normalized);
 
       setStudentPromoByUserId(
         Object.fromEntries(normalized.students.map((student) => [student.userId, student.promoId ? String(student.promoId) : '']))
-      );
-
-      setTeacherAssignmentByUserId(
-        Object.fromEntries(
-          normalized.teachers.map((teacher) => [
-            teacher.userId,
-            {
-              moduleIds: Array.isArray(teacher.moduleIds) ? teacher.moduleIds : [],
-              promoId: teacher.promoIds?.[0] ? String(teacher.promoIds[0]) : '',
-              anneeUniversitaire: teacher.anneeUniversitaire || '',
-            },
-          ])
-        )
       );
     } catch (err) {
       setError(err.message || 'Failed to load assignments data.');
@@ -88,58 +71,6 @@ export default function AdminAcademicAssignmentsPage() {
     }
   };
 
-  const toggleTeacherModule = (userId, moduleId) => {
-    setTeacherAssignmentByUserId((prev) => {
-      const current = prev[userId] || { moduleIds: [], promoId: '', anneeUniversitaire: '' };
-      const nextModuleIds = current.moduleIds.includes(moduleId)
-        ? current.moduleIds.filter((id) => id !== moduleId)
-        : [...current.moduleIds, moduleId];
-
-      return {
-        ...prev,
-        [userId]: {
-          ...current,
-          moduleIds: nextModuleIds,
-        },
-      };
-    });
-  };
-
-  const saveTeacherAssignment = async (userId) => {
-    const assignment = teacherAssignmentByUserId[userId] || { moduleIds: [], promoId: '', anneeUniversitaire: '' };
-    if (!assignment.moduleIds.length) {
-      setError('Select at least one module for the teacher.');
-      return;
-    }
-
-    setSavingTeacherByUserId((prev) => ({ ...prev, [userId]: true }));
-    setError('');
-    setMessage('');
-    try {
-      await authAPI.adminAssignTeacherModules(userId, {
-        moduleIds: assignment.moduleIds,
-        promoId: assignment.promoId ? Number(assignment.promoId) : undefined,
-        anneeUniversitaire: assignment.anneeUniversitaire?.trim() || undefined,
-      });
-      setMessage('Teacher module/group assignment saved.');
-      await loadData();
-    } catch (err) {
-      setError(err.message || 'Failed to assign teacher modules.');
-    } finally {
-      setSavingTeacherByUserId((prev) => ({ ...prev, [userId]: false }));
-    }
-  };
-
-  const modulesBySpecialite = useMemo(() => {
-    const map = {};
-    for (const module of data.modules) {
-      const key = module.specialiteNom || 'Other';
-      if (!map[key]) map[key] = [];
-      map[key].push(module);
-    }
-    return map;
-  }, [data.modules]);
-
   if (authLoading || loading) {
     return <div className="rounded-2xl border border-edge bg-surface p-6">Loading assignments...</div>;
   }
@@ -158,16 +89,12 @@ export default function AdminAcademicAssignmentsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.22em] text-ink-tertiary">Administration</p>
             <h1 className="mt-2 text-3xl font-bold tracking-tight text-ink">Academic Assignments</h1>
             <p className="mt-2 max-w-2xl text-sm text-ink-secondary">
-              Link students to promos and teachers to modules. Assignments power dashboards, reports, and access scoping.
+              Link students to promos. Teacher↔course assignment is no longer used; teacher scope is derived from PFE supervision.
             </p>
             <div className="mt-4 flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-canvas px-3 py-1 text-ink-secondary">
                 <GraduationCap className="h-3.5 w-3.5" strokeWidth={2} />
                 {data.students.length} students
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-canvas px-3 py-1 text-ink-secondary">
-                <UserCog className="h-3.5 w-3.5" strokeWidth={2} />
-                {data.teachers.length} teachers
               </span>
             </div>
           </div>
@@ -242,97 +169,6 @@ export default function AdminAcademicAssignmentsPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-edge bg-surface p-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand">
-            <UserCog className="h-5 w-5" strokeWidth={2} />
-          </span>
-          <div>
-            <h2 className="text-lg font-semibold text-ink">Teacher Assignments</h2>
-            <p className="text-sm text-ink-secondary">Assign modules and optional promo/group context per teacher.</p>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-4">
-          {data.teachers.map((teacher) => {
-            const assignment = teacherAssignmentByUserId[teacher.userId] || { moduleIds: [], promoId: '', anneeUniversitaire: '' };
-            return (
-              <article key={`teacher-${teacher.userId}`} className="rounded-xl border border-edge bg-canvas/60 p-5 transition-colors hover:border-brand/30 hover:bg-canvas">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-ink">{teacher.prenom} {teacher.nom}</p>
-                    <p className="text-xs text-ink-secondary">{teacher.email}</p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    <select
-                      className={inputClass}
-                      value={assignment.promoId || ''}
-                      onChange={(e) => setTeacherAssignmentByUserId((prev) => ({
-                        ...prev,
-                        [teacher.userId]: { ...assignment, promoId: e.target.value },
-                      }))}
-                    >
-                      <option value="">Promo/Group (optional)</option>
-                      {data.promos.map((promo) => (
-                        <option key={`teacher-promo-${teacher.userId}-${promo.id}`} value={promo.id}>
-                          {(promo.nom || `Promo ${promo.id}`)} | {promo.section || '-'}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      className={inputClass}
-                      placeholder="Academic year"
-                      value={assignment.anneeUniversitaire || ''}
-                      onChange={(e) => setTeacherAssignmentByUserId((prev) => ({
-                        ...prev,
-                        [teacher.userId]: { ...assignment, anneeUniversitaire: e.target.value },
-                      }))}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3 space-y-2">
-                  {Object.entries(modulesBySpecialite).map(([specialiteName, modules]) => (
-                    <div key={`specialite-group-${teacher.userId}-${specialiteName}`}>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-ink-tertiary">{specialiteName}</p>
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        {modules.map((module) => {
-                          const checked = assignment.moduleIds.includes(module.id);
-                          return (
-                            <label
-                              key={`teacher-module-${teacher.userId}-${module.id}`}
-                              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs ${checked ? 'border-edge-strong bg-brand-light text-brand' : 'border-edge bg-surface text-ink-secondary'}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => toggleTeacherModule(teacher.userId, module.id)}
-                                className="accent-brand"
-                              />
-                              <span>{module.code} - {module.nom}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 text-right">
-                  <button
-                    type="button"
-                    disabled={!!savingTeacherByUserId[teacher.userId]}
-                    onClick={() => saveTeacherAssignment(teacher.userId)}
-                    className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-surface shadow-sm transition-colors hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/40 disabled:opacity-60"
-                  >
-                    {savingTeacherByUserId[teacher.userId] ? 'Saving…' : 'Save Teacher Assignment'}
-                  </button>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }

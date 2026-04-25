@@ -452,3 +452,73 @@ export const recordDecisionService = async (input: RecordDecisionInput, caller: 
 
   return { data: transformDossier(dossier) };
 };
+
+// ═══════════════════ STUDENT SELF-ACCESS ════════════════════
+
+export const getStudentOwnDossiers = async (userId: number) => {
+  const etudiant = await repo.findEtudiantByUserId(userId);
+  if (!etudiant) return { error: "Profil étudiant introuvable.", status: 404 };
+  const dossiers = await repo.findStudentDossiers(etudiant.id);
+  return { data: transformDossiers(dossiers) };
+};
+
+export const getStudentNotifications = async (userId: number) => {
+  const etudiant = await repo.findEtudiantByUserId(userId);
+  if (!etudiant) return { data: [] };
+
+  const dossiers = await repo.findManyDossiers({ etudiantId: etudiant.id });
+  const notifications: any[] = [];
+
+  for (const dossier of dossiers) {
+    const desc = (dossier as any).descriptionSignal_en || (dossier as any).descriptionSignal_ar || "";
+    const infractionLabel = (dossier as any).infraction?.nom_en || (dossier as any).infraction?.nom_ar || "Misconduct";
+
+    // Notification: case reported
+    notifications.push({
+      id: `notif-reported-${dossier.id}`,
+      type: "info",
+      title: "Case Reported",
+      description: `A disciplinary case has been opened regarding: ${infractionLabel}. ${desc}`.trim(),
+      date: (dossier as any).dateSignal || (dossier as any).createdAt,
+      read: (dossier as any).status !== "signale",
+    });
+
+    // Notification: hearing scheduled (if conseil exists)
+    if ((dossier as any).conseil) {
+      const conseil = (dossier as any).conseil;
+      notifications.push({
+        id: `notif-hearing-${dossier.id}`,
+        type: "hearing",
+        title: "Hearing Scheduled",
+        description: `A disciplinary council meeting has been scheduled for your case.`,
+        date: conseil.dateReunion || (dossier as any).updatedAt,
+        hearingDate: conseil.dateReunion,
+        location: conseil.lieu || "TBD",
+        read: ["traite", "jugement"].includes((dossier as any).status),
+      });
+    }
+
+    // Notification: decision made
+    if ((dossier as any).decision) {
+      const decision = (dossier as any).decision;
+      const verdict = decision.nom_en || decision.nom_ar || "Decision";
+      const decisionDate = (dossier as any).dateDecision || (dossier as any).updatedAt;
+      const appealDeadline = new Date(new Date(decisionDate).getTime() + 15 * 24 * 60 * 60 * 1000);
+
+      notifications.push({
+        id: `notif-decision-${dossier.id}`,
+        type: "decision",
+        title: "Decision Issued",
+        description: `A decision has been issued for your case: ${verdict}.`,
+        date: decisionDate,
+        verdict,
+        appealDeadline: appealDeadline.toISOString(),
+        read: false,
+      });
+    }
+  }
+
+  // Sort by date descending
+  notifications.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  return { data: notifications };
+};

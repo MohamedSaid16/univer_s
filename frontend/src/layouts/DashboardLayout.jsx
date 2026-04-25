@@ -32,7 +32,7 @@ const ALL_MODULES = [
   {
     nameKey: 'nav.disciplinary',
     path: '/dashboard/disciplinary',
-    roles: ['enseignant', 'admin'],
+    roles: ['enseignant', 'admin', 'etudiant'],
     permissions: ['reclamations:manage:global'],
   },
   {

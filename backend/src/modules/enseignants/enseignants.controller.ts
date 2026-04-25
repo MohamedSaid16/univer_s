@@ -1,55 +1,21 @@
 import { Response } from "express";
-import prisma from "../../config/database";
 import { AuthRequest } from "../../middlewares/auth.middleware";
 
-export const getMyEnseignements = async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const userId = req.user?.id;
-
-    if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Authentication required" },
-      });
-      return;
-    }
-
-    const enseignant = await prisma.enseignant.findUnique({
-      where: { userId },
-      select: { id: true },
-    });
-
-    if (!enseignant) {
-      res.status(404).json({
-        success: false,
-        error: { code: "NOT_FOUND", message: "Teacher profile not found" },
-      });
-      return;
-    }
-
-    const enseignements = await prisma.enseignement.findMany({
-      where: { enseignantId: enseignant.id },
-      include: {
-        module: true,
-        promo: true,
-        enseignant: {
-          include: {
-            user: true,
-          },
-        },
-      },
-      orderBy: { id: "desc" },
-    });
-
-    res.json({
-      success: true,
-      data: enseignements,
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to fetch enseignements";
-    res.status(500).json({
-      success: false,
-      error: { code: "INTERNAL_ERROR", message },
-    });
-  }
+/**
+ * Deprecated: teacher↔course assignment is no longer the system's source of
+ * truth. Teacher data is derived from PFE supervision (GroupPfe / GroupMember)
+ * and the Promo entity. This shim is kept so existing clients receive a clear,
+ * non-fatal response instead of a 404 while they migrate.
+ */
+export const getMyEnseignements = async (
+  _req: AuthRequest,
+  res: Response
+): Promise<void> => {
+  res.status(410).json({
+    success: false,
+    deprecated: true,
+    message:
+      "This feature is deprecated. Teacher data is now sourced from PFE supervision (GroupPfe).",
+    data: [],
+  });
 };

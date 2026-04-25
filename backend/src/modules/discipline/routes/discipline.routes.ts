@@ -35,6 +35,8 @@ import {
   scheduleMeetingHandler,
   searchStaffHandler,
   statsHandler,
+  studentNotificationsHandler,
+  studentOwnDossiersHandler,
   updateConseilHandler,
   updateDecisionHandler,
   updateDossierHandler,
@@ -105,5 +107,10 @@ router.post("/meetings", requireAuth, requireRole(adminOnly), scheduleMeetingHan
 router.get("/meetings", requireAuth, requireRole(readRoles), listConseilsHandler);
 router.post("/decisions", requireAuth, requireRole(presidentRoles), recordDecisionHandler);
 router.get("/stats", requireAuth, requireRole(readRoles), statsHandler);
+
+// ── Student self-access routes ──────────────────────────────
+// Any authenticated user can hit these — handlers enforce student-only logic.
+router.get("/notifications", requireAuth, studentNotificationsHandler);
+router.get("/my-dossiers", requireAuth, studentOwnDossiersHandler);
 
 export default router;

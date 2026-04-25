@@ -188,10 +188,27 @@ export const catalogAPI = {
   },
 };
 
+/* ── Student self-access ──────────────────────────────────── */
+
+export const studentAPI = {
+  /** Discipline notifications for the logged-in student */
+  notifications: async () => {
+    const response = await request(`${BASE}/notifications`);
+    return Array.isArray(response?.data) ? response.data : [];
+  },
+
+  /** The logged-in student's own dossiers */
+  myDossiers: async () => {
+    const response = await request(`${BASE}/my-dossiers`);
+    return unwrapList(response);
+  },
+};
+
 /* ── Convenience default export ──────────────────────────── */
 
 export default {
   cases: casesAPI,
   meetings: meetingsAPI,
   catalog: catalogAPI,
+  student: studentAPI,
 };

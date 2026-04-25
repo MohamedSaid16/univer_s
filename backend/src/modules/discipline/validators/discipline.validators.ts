@@ -110,4 +110,4 @@ export const trimOrEmpty = (value: unknown): string =>
 // Workflow requires: 1 president + 1 rapporteur (auto) + exactly 2 members.
 
 export const MIN_ADDITIONAL_COUNCIL_MEMBERS = 2;
-export const MAX_ADDITIONAL_COUNCIL_MEMBERS = 2;
+export const MAX_ADDITIONAL_COUNCIL_MEMBERS = 10;
